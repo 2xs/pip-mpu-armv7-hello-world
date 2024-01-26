@@ -39,81 +39,15 @@ OUTPUT_FORMAT(
 
 OUTPUT_ARCH(arm)
 
-ENTRY(start)
+ENTRY(_start)
 
 SECTIONS
 {
-	/*
-	 * The '.rom' output section collects all
-	 * input sections that need to remain in ROM.
-	 */
-	.rom :
+	.text :
 	{
 		. = ALIGN( 4 ) ;
-		__romStart = . ;
-
 		*(.text*)
 		. = ALIGN( 4 ) ;
-
-		*(.rodata*)
-		. = ALIGN( 4 ) ;
-
-		__romEnd = . ;
+		__metadataOff = . ;
 	}
-
-	__romSize = __romEnd - __romStart;
-
-	/*
-	 * The section '.got' must be placed rigth
-	 * after the '.rom' section in order to save
-	 * ROM space.
-	 */
-	.got :
-	{
-		. = ALIGN( 4 ) ;
-		__gotStart = . ;
-
-		*(.got*)
-		. = ALIGN( 4 ) ;
-
-		__gotEnd = . ;
-	}
-
-	__gotSize = __gotEnd - __gotStart;
-
-	/*
-	 * The '.rom.ram' output section collects all
-	 * input sections that need to be copied from
-	 * ROM to RAM.
-	 */
-	.rom.ram :
-	{
-		. = ALIGN( 4 ) ;
-		__romRamStart = . ;
-
-		*(.data*)
-		. = ALIGN( 4 ) ;
-
-		__romRamEnd = . ;
-	}
-
-	__romRamSize = __romRamEnd - __romRamStart;
-
-	/*
-	 * The '.ram' output section collects all
-	 * input sections that need to be set to zero
-	 * in RAM.
-	 */
-	.ram (NOLOAD) :
-	{
-		. = ALIGN( 4 ) ;
-		__ramStart = . ;
-
-		*(.bss* COMMON)
-		. = ALIGN( 4 ) ;
-
-		__ramEnd = . ;
-	}
-
-	__ramSize = __ramEnd - __ramStart;
 }

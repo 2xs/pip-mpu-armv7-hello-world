@@ -31,89 +31,80 @@
 /*  knowledge of the CeCILL license and that you accept its terms.             */
 /*******************************************************************************/
 
-OUTPUT_FORMAT(
-	"elf32-littlearm",
-	"elf32-littlearm",
-	"elf32-littlearm"
-)
+#ifndef __CRT0_H__
+#define __CRT0_H__
 
-OUTPUT_ARCH(arm)
+#include "pip-mpu.h"
 
-ENTRY(start)
-
-SECTIONS
+typedef struct symbolTable_s
 {
-	/*
-	 * The '.rom' output section collects all
-	 * input sections that need to remain in ROM.
+	/*!
+	 * \brief The entry point address within the
+	 *        partition.
 	 */
-	.rom :
-	{
-		. = ALIGN( 4 ) ;
-		__romStart = . ;
-
-		*(.text*)
-		. = ALIGN( 4 ) ;
-
-		*(.rodata*)
-		. = ALIGN( 4 ) ;
-
-		__romEnd = . ;
-	}
-
-	__romSize = __romEnd - __romStart;
-
-	/*
-	 * The section '.got' must be placed rigth
-	 * after the '.rom' section in order to save
-	 * ROM space.
+	uint32_t entryPoint;
+	/*!
+	 * \brief The '.rom' section size, in bytes,
+	 *        of the partition.
 	 */
-	.got :
-	{
-		. = ALIGN( 4 ) ;
-		__gotStart = . ;
-
-		*(.got*)
-		. = ALIGN( 4 ) ;
-
-		__gotEnd = . ;
-	}
-
-	__gotSize = __gotEnd - __gotStart;
-
-	/*
-	 * The '.rom.ram' output section collects all
-	 * input sections that need to be copied from
-	 * ROM to RAM.
+	uint32_t romSecSize;
+	/*!
+	 * \brief The '.rom.ram' section size, in
+	 *        bytes, of the partition.
 	 */
-	.rom.ram :
-	{
-		. = ALIGN( 4 ) ;
-		__romRamStart = . ;
-
-		*(.data*)
-		. = ALIGN( 4 ) ;
-
-		__romRamEnd = . ;
-	}
-
-	__romRamSize = __romRamEnd - __romRamStart;
-
-	/*
-	 * The '.ram' output section collects all
-	 * input sections that need to be set to zero
-	 * in RAM.
+	uint32_t romRamSecSize;
+	/*!
+	 * \brief The '.ram' section size, in bytes,
+	 *        of the partition.
 	 */
-	.ram (NOLOAD) :
-	{
-		. = ALIGN( 4 ) ;
-		__ramStart = . ;
+	uint32_t ramSecSize;
+	/*!
+	 * \brief The '.got' section size, in bytes,
+	 *        of the partition.
+	 */
+	uint32_t gotSecSize;
+	/*!
+	 * \brief The '.romRam' section end address
+	 *        of the partition.
+	 */
+	uint32_t romRamEnd;
+} symbolTable_t;
 
-		*(.bss* COMMON)
-		. = ALIGN( 4 ) ;
+typedef struct patchinfoEntry_s
+{
+	/*!
+	 * \brief The pointer offest to patch.
+	 */
+	uint32_t ptrOff;
+} patchinfoEntry_t;
 
-		__ramEnd = . ;
-	}
+typedef struct patchinfoTable_s
+{
+	/*!
+	 * \brief The number of patchinfo entry.
+	 */
+	uint32_t entryNumber;
+	/*!
+	 * \brief The patchinfo entries.
+	 */
+	patchinfoEntry_t entries[];
+} patchinfoTable_t;
 
-	__ramSize = __ramEnd - __ramStart;
-}
+typedef struct metadata_s
+{
+	/*!
+	 * \brief The symbol table.
+	 */
+	symbolTable_t symbolTable;
+	/*!
+	 * \brief The patchinfo table.
+	 */
+	patchinfoTable_t patchinfoTable;
+} metadata_t;
+
+/*!
+ * \brief the offset of the metadata structure.
+ */
+extern uint32_t *__metadataOff;
+
+#endif /* __CRT0_H__ */

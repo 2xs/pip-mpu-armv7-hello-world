@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 ###############################################################################
 #  © Université de Lille, The Pip Development Team (2015-2024)                #
 #                                                                             #
@@ -31,92 +32,70 @@
 #  knowledge of the CeCILL license and that you accept its terms.             #
 ###############################################################################
 
-PREFIX          = arm-none-eabi-
-CC              = $(PREFIX)gcc
-LD              = $(PREFIX)gcc
-OBJCOPY         = $(PREFIX)objcopy
 
-CFLAGS          = -Wall
-CFLAGS         += -Wextra
-CFLAGS         += -Werror
-CFLAGS         += -mthumb
-CFLAGS         += -mcpu=cortex-m4
-CFLAGS         += -mfloat-abi=hard
-CFLAGS         += -mfpu=fpv4-sp-d16
-CFLAGS         += -msingle-pic-base
-CFLAGS         += -mpic-register=sl
-CFLAGS         += -mno-pic-data-is-text-relative
-CFLAGS         += -fPIC
-CFLAGS         += -ffreestanding
-CFLAGS         += -Os
-CFLAGS         += -Wno-unused-parameter
-CFLAGS         += -Irelocator
-CFLAGS         += -I../include
+"""relocation script"""
 
-LDFLAGS         = -nostartfiles
-LDFLAGS        += -nodefaultlibs
-LDFLAGS        += -nolibc
-LDFLAGS        += -nostdlib
-LDFLAGS        += -Tlink.ld
-LDFLAGS        += -Wl,-q
-# Disable the new linker warning '--warn-rwx-segments' introduced by
-# Binutils 2.39, which causes the following message: "warning:
-# $(TARGET).elf has a LOAD segment with RWX permissions".
-ifeq ($(shell $(PREFIX)ld --help | grep -q 'warn-rwx-segments'; echo $$?), 0)
-LDFLAGS        += -Wl,--no-warn-rwx-segments
-endif
 
-OBJCOPYFLAGS    = --input-target=elf32-littlearm
-OBJCOPYFLAGS   += --output-target=binary
+import sys
 
-SYMNAMES        = start
-SYMNAMES       += __romSize
-SYMNAMES       += __romRamSize
-SYMNAMES       += __ramSize
-SYMNAMES       += __gotSize
-SYMNAMES       += __romRamEnd
 
-RELSECTIONS     = .rel.rom.ram
+from elftools.elf.elffile import ELFFile
+from elftools.elf.relocation import RelocationSection
+from elftools.elf.enums import ENUM_RELOC_TYPE_ARM as r_types
 
-TARGET          = pip-mpu-hello-world
 
-all: $(TARGET).bin
+def usage():
+    """Print how to to use the script and exit"""
+    print(f'usage: {sys.argv[0]} ELF OUTPUT SECTION...')
+    sys.exit(1)
 
-$(TARGET).bin: $(TARGET)-raw.bin padding.bin
-	cat $^ > $@
 
-$(TARGET)-raw.bin: crt0.bin symbols.bin relocation.bin partition.bin
-	cat $^ > $@
+def die(message):
+    """Print error message and exit"""
+    print(f'{sys.argv[0]}: {message}', file=sys.stderr)
+    sys.exit(1)
 
-crt0.bin: relocator/crt0.c relocator/crt0.h relocator/link.ld relocator/Makefile
-	make -C relocator realclean all
-	cp relocator/$@ $@
 
-symbols.bin: $(TARGET).elf relocator/symbols.py
-	exec relocator/symbols.py $< $@ $(SYMNAMES)
+def to_word(x):
+    """Convert a python integer to a LE 4-bytes bytearray"""
+    return x.to_bytes(4, byteorder='little')
 
-relocation.bin: $(TARGET).elf relocator/relocation.py
-	exec relocator/relocation.py $< $@ $(RELSECTIONS)
 
-partition.bin: $(TARGET).elf
-	$(OBJCOPY) $(OBJCOPYFLAGS) $< $@
-	@chmod 644 $@
+def get_r_type(r_info):
+    """Get the relocation type from r_info"""
+    return r_info & 0xff
 
-$(TARGET).elf: main.o
-	$(LD) $(LDFLAGS) $^ -o $@
 
-main.o: main.c
-	$(CC) $(CFLAGS) -c $< -o $@
+def process_section(elf, name):
+    """Parse a relocation section to extract the r_offset"""
+    sh = elf.get_section_by_name(name)
+    if not sh:
+        return to_word(0)
+    if not isinstance(sh, RelocationSection):
+        die(f'{name}: is not a relocation section')
+    if sh.is_RELA():
+        die(f'{name}: unsupported RELA')
+    xs = bytearray(to_word(sh.num_relocations()))
+    for i, entry in enumerate(sh.iter_relocations()):
+        if get_r_type(entry['r_info']) != r_types['R_ARM_ABS32']:
+            die(f'{name}: entry {i}: unsupported relocation type')
+        xs += to_word(entry['r_offset'])
+    return xs
 
-padding.bin: $(TARGET)-raw.bin relocator/padding.py
-	exec relocator/padding.py $< $@
 
-clean:
-	$(RM) main.o $(TARGET)-raw.bin padding.bin crt0.bin symbols.bin relocation.bin partition.bin
-	make -C relocator clean
+def process_file(elf, names):
+    """Process each section"""
+    xs = bytearray()
+    for name in names:
+        xs += process_section(elf, name)
+    return xs
 
-realclean: clean
-	$(RM) $(TARGET).elf $(TARGET).bin
-	make -C relocator realclean
 
-.PHONY: all clean realclean
+if __name__ == '__main__':
+    if len(sys.argv) >= 4:
+        with open(sys.argv[1], 'rb') as f:
+            xs = process_file(ELFFile(f), sys.argv[3:])
+        with open(sys.argv[2], 'wb') as f:
+            f.write(xs)
+        sys.exit(0)
+    usage()
