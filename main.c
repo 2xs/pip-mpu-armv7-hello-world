@@ -87,7 +87,7 @@ puts(const char *s)
  * \brief   This function is the entry point.
  */
 void
-main(void)
+start(void)
 {
 	puts("Hello World!\n");
 
