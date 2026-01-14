@@ -1,5 +1,5 @@
 ###############################################################################
-#  © Université de Lille, The Pip Development Team (2015-2024)                #
+#  © Université de Lille, The Pip Development Team (2015-2025)                #
 #                                                                             #
 #  This software is a computer program whose purpose is to run a minimal,     #
 #  hypervisor relying on proven properties such as memory isolation.          #
@@ -30,6 +30,7 @@
 #  The fact that you are presently reading this means that you have had       #
 #  knowledge of the CeCILL license and that you accept its terms.             #
 ###############################################################################
+include vars.mk
 
 # To build the binary in debug mode, set the DEBUG variable
 #DEBUG           = 1
@@ -75,64 +76,31 @@ ifeq ($(shell $(PREFIX)ld --help | grep -q 'warn-rwx-segments'; echo $$?), 0)
 LDFLAGS        += -Wl,--no-warn-rwx-segments
 endif
 
-OBJCOPYFLAGS    = --input-target=elf32-littlearm
-OBJCOPYFLAGS   += --output-target=binary
-
-SYMNAMES        = start
-SYMNAMES       += __romSize
-SYMNAMES       += __romRamSize
-SYMNAMES       += __ramSize
-SYMNAMES       += __gotSize
-SYMNAMES       += __romRamEnd
-
-RELSECTIONS     = .rel.rom.ram
-
 TARGET          = pip-mpu-hello-world
 
-all: $(TARGET).bin symbols.gdb
+all: build/$(TARGET).fae build/pip+root.fae
 
-$(TARGET).bin: $(TARGET)-raw.bin padding.bin
-	cat $^ > $@
+build:
+	mkdir -p build
 
-$(TARGET)-raw.bin: crt0.bin symbols.bin relocation.bin partition.bin
-	cat $^ > $@
-
-crt0.bin: relocator/crt0.c relocator/crt0.h relocator/link.ld relocator/Makefile
-	make -C relocator realclean all
-	cp relocator/$@ $@
-
-symbols.bin: $(TARGET).elf relocator/symbols.py
-	exec relocator/symbols.py $< $@ $(SYMNAMES)
-
-relocation.bin: $(TARGET).elf relocator/relocation.py
-	exec relocator/relocation.py $< $@ $(RELSECTIONS)
-
-symbols.gdb: relocator/gdbinit.py $(TARGET).elf $(TARGET).bin symbols.bin
-	exec relocator/gdbinit.py\
-            $(shell realpath ../pipcore-mpu/pip.elf)\
-            $(shell realpath relocator/crt0.elf)\
-            $(shell realpath $(TARGET).elf)\
-            $$(($$(wc -c < crt0.bin)+$$(wc -c < symbols.bin)+$$(wc -c < relocation.bin))) > $@
-
-partition.bin: $(TARGET).elf
-	$(OBJCOPY) $(OBJCOPYFLAGS) $< $@
+build/pip+root.fae: build/$(TARGET).fae
+	cat $(PIPCORE_MPU_PIP_PATH) build/$(TARGET).fae > $@
 	@chmod 644 $@
 
-$(TARGET).elf: main.o
+build/$(TARGET).fae: build/$(TARGET).elf
+	$(FAE_BUILDER) --crt0-path $(PIPCORE_MPU_CRT0_DIRECTORY_PATH) build/$(TARGET).elf
+	@chmod 644 $@
+
+build/$(TARGET).elf: build/main.o | build
 	$(LD) $(LDFLAGS) $^ -o $@
 
-main.o: main.c
+build/main.o: main.c | build
 	$(CC) $(CFLAGS) -c $< -o $@
 
-padding.bin: $(TARGET)-raw.bin relocator/padding.py
-	exec relocator/padding.py $< $@
-
 clean:
-	$(RM) main.o $(TARGET)-raw.bin padding.bin crt0.bin symbols.bin relocation.bin partition.bin
-	make -C relocator clean
+	$(RM) build/main.o
 
 realclean: clean
-	$(RM) $(TARGET).elf $(TARGET).bin symbols.gdb
-	make -C relocator realclean
+	$(RM) -rf build
 
 .PHONY: all clean realclean

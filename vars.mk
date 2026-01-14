@@ -1,6 +1,5 @@
-#!/usr/bin/env python3
 ###############################################################################
-#  © Université de Lille, The Pip Development Team (2015-2024)                #
+#  © Université de Lille, The Pip Development Team (2015-2025)                #
 #                                                                             #
 #  This software is a computer program whose purpose is to run a minimal,     #
 #  hypervisor relying on proven properties such as memory isolation.          #
@@ -31,71 +30,46 @@
 #  The fact that you are presently reading this means that you have had       #
 #  knowledge of the CeCILL license and that you accept its terms.             #
 ###############################################################################
+DIRECTORIES_MK_PATH = $(abspath directories.mk)
+
+ifeq ("$(wildcard $(DIRECTORIES_MK_PATH))","")
+    $(error "Please create $(DIRECTORIES_MK_PATH) and populate the file with FAE_DIRECTORY_PATH and PIPCORE_MPU_DIRECTORY_PATH")
+endif
+
+include directories.mk
+
+ifeq ("$(FAE_DIRECTORY_PATH)","")
+    $(error "FAE_DIRECTORY_PATH has not been defined in $(DIRECTORIES_MK_PATH)")
+endif
+
+FAE_ABSOLUTE_DIRECTORY_PATH=$(abspath $(FAE_DIRECTORY_PATH))
+ifeq ("$(wildcard $(FAE_ABSOLUTE_DIRECTORY_PATH))","")
+    $(error "$(FAE_ABSOLUTE_DIRECTORY_PATH) does not exist." )
+endif
+
+FAE_UTILS_DIRECTORY_PATH=$(FAE_ABSOLUTE_DIRECTORY_PATH)/fae_utils
+FAE_BUILDER=$(FAE_UTILS_DIRECTORY_PATH)/build_fae.py
+ifeq ("$(wildcard $(FAE_BUILDER))","")
+    $(error "Missing build_fae.py in $(FAE_UTILS_DIRECTORY_PATH) path. Please check this path.")
+endif
 
 
-"""relocation script"""
+ifeq ("$(PIPCORE_MPU_DIRECTORY_PATH)","")
+    $(error "PIPCORE_MPU_DIRECTORY_PATH has not been defined in $(DIRECTORIES_MK_PATH)")
+endif
+PIPCORE_ABSOLUTE_DIRECTORY_PATH=$(abspath $(PIPCORE_MPU_DIRECTORY_PATH))
 
+PIPCORE_MPU_PIP_PATH=$(PIPCORE_ABSOLUTE_DIRECTORY_PATH)/pip.bin
+ifeq ("$(wildcard $(PIPCORE_MPU_PIP_PATH))","")
+    $(error "Missing pip.bin. Please make $(PIPCORE_MPU_PIP_PATH) first.")
+endif
 
-import sys
-
-
-from elftools.elf.elffile import ELFFile
-from elftools.elf.relocation import RelocationSection
-from elftools.elf.enums import ENUM_RELOC_TYPE_ARM as r_types
-
-
-def usage():
-    """Print how to to use the script and exit"""
-    print(f'usage: {sys.argv[0]} ELF OUTPUT SECTION...')
-    sys.exit(1)
-
-
-def die(message):
-    """Print error message and exit"""
-    print(f'\033[91;1m{sys.argv[0]}: {message}\033[0m', file=sys.stderr)
-    sys.exit(1)
-
-
-def to_word(x):
-    """Convert a python integer to a LE 4-bytes bytearray"""
-    return x.to_bytes(4, byteorder='little')
-
-
-def get_r_type(r_info):
-    """Get the relocation type from r_info"""
-    return r_info & 0xff
-
-
-def process_section(elf, name):
-    """Parse a relocation section to extract the r_offset"""
-    sh = elf.get_section_by_name(name)
-    if not sh:
-        return to_word(0)
-    if not isinstance(sh, RelocationSection):
-        die(f'{name}: is not a relocation section')
-    if sh.is_RELA():
-        die(f'{name}: unsupported RELA')
-    xs = bytearray(to_word(sh.num_relocations()))
-    for i, entry in enumerate(sh.iter_relocations()):
-        if get_r_type(entry['r_info']) != r_types['R_ARM_ABS32']:
-            die(f'{name}: entry {i}: unsupported relocation type')
-        xs += to_word(entry['r_offset'])
-    return xs
-
-
-def process_file(elf, names):
-    """Process each section"""
-    xs = bytearray()
-    for name in names:
-        xs += process_section(elf, name)
-    return xs
-
-
-if __name__ == '__main__':
-    if len(sys.argv) >= 4:
-        with open(sys.argv[1], 'rb') as f:
-            xs = process_file(ELFFile(f), sys.argv[3:])
-        with open(sys.argv[2], 'wb') as f:
-            f.write(xs)
-        sys.exit(0)
-    usage()
+PIPCORE_MPU_CRT0_DIRECTORY_PATH=$(PIPCORE_ABSOLUTE_DIRECTORY_PATH)/src/partition_crt0/build
+PIPCORE_MPU_CRT0_FAE_PATH=$(PIPCORE_MPU_CRT0_DIRECTORY_PATH)/crt0.fae
+PIPCORE_MPU_CRT0_ELF_PATH=$(PIPCORE_MPU_CRT0_DIRECTORY_PATH)/crt0.elf
+ifeq ("$(wildcard $(PIPCORE_MPU_CRT0_FAE_PATH))","")
+    $(error "Missing crt0.fae. Please make $(PIPCORE_MPU_CRT0_FAE_PATH) first.")
+endif
+ifeq ("$(wildcard $(PIPCORE_MPU_CRT0_ELF_PATH))","")
+    $(error "Missing crt0.elf. Please make $(PIPCORE_MPU_CRT0_ELF_PATH) first.")
+endif

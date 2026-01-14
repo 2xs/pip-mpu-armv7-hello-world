@@ -2,3 +2,5 @@
 *.elf
 *.bin
 symbols.gdb
+build/
+directories.mk

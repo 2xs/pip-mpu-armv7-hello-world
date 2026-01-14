@@ -62,6 +62,7 @@ SECTIONS
 	}
 
 	__romSize = __romEnd - __romStart;
+	__rom_size = __romSize;
 
 	/*
 	 * The section '.got' must be placed rigth
@@ -80,6 +81,7 @@ SECTIONS
 	}
 
 	__gotSize = __gotEnd - __gotStart;
+	__got_size = __gotSize;
 
 	/*
 	 * The '.rom.ram' output section collects all
@@ -98,6 +100,7 @@ SECTIONS
 	}
 
 	__romRamSize = __romRamEnd - __romRamStart;
+	__rom_ram_size = __romRamSize;
 
 	/*
 	 * The '.ram' output section collects all
@@ -116,4 +119,5 @@ SECTIONS
 	}
 
 	__ramSize = __ramEnd - __ramStart;
+	__ram_size = __ramSize;
 }
